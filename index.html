@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>BJT练习入口</title>
+<style>
+  body{margin:0;background:#0f1115;color:#e6e8ef;font:16px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto}
+  .wrap{max-width:900px;margin:0 auto;padding:32px 16px}
+  .card{background:#131621;border:1px solid #22263a;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:20px}
+  h1{margin:0 0 8px 0;font-size:22px}
+  .muted{color:#aab0c3}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 18px}
+  input[type=text]{height:38px;padding:0 10px;border:1px solid #2e3350;border-radius:10px;background:#0f1322;color:#e6e8ef}
+  .btn{display:inline-block;border:1px solid #2e3350;background:#1b1f33;color:#e6e8ef;
+       padding:10px 14px;border-radius:10px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:#232948}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  ul{list-style:none;padding:0;margin:10px 0 0 0}
+  li{margin:8px 0}
+  .name{font-weight:700}
+  
+  .content{position:relative;z-index:2}
+  .err{color:#ff6b6b;margin-left:8px}
+  .ok{color:#86efac;margin-left:8px}
+
+
+  /* 强化禁用态样式，确保 <a> 也变灰且不可点击/聚焦 */
+  .btn.disabled, .btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed;pointer-events:none;filter:grayscale(1);}
+
+ 
+  /* 仅文字水印（全屏平铺） —— 取自 quiz01 */
+  .wm{position:fixed;inset:0;pointer-events:none;z-index:5;display:none}
+  .wm-tiles{
+    position:fixed;inset:0;z-index:6;pointer-events:none;
+    background-repeat:repeat;background-size:520px 320px;opacity:.22;
+  }
+  .wm span{position:fixed;right:16px;bottom:12px;z-index:7;transform:rotate(-12deg);font-size:18px;color:#fff}
+
+</style> 
+  <style id="extra-validation-styles">  
+   /* 禁用态（视觉与交互都禁用） */
+   .btn.disabled, .btn[aria-disabled="true"]{
+     opacity:.5;cursor:not-allowed;pointer-events:none;filter:grayscale(1);
+   }
+ </style>
+ 
+</head>
+<body>
+<div class="wm" id="wm"><div class="wm-tiles" id="wmTiles"></div><span id="wmText"></span></div>
+
+<div class="wrap content">
+  <div class="card">
+    <h1>BJT练习入口</h1>
+    <p class="muted">请填写姓名：</p>
+
+    <div class="row">
+      <label>姓名：</label>
+      <input id="nameInput" type="text" placeholder="请输入姓名" style="width:200px">
+      <button id="saveBtn" class="btn">确定/更新姓名</button>
+      <span id="hello" class="muted"></span><span id="err" class="err"></span>
+    </div>
+
+    <h3>可用测试</h3>
+    <ul id="list">
+      <!-- 把 href 指向你的测试页；JS 会自动把 ?name= 拼上 -->
+      <li><a class="btn testlink" data-file="quiz01.html" href="#">听解S1+S2</a></li>
+      <!-- 需要更多测试就复制下面几行，把 data-file 改成你的文件名 -->
+      <li><a class="btn testlink" data-file="quiz02.html" href="#">听解S3</a></li>
+      <!-- <li><a class="btn testlink" data-file="quiz03.html" href="#">模拟试卷 03</a></li> -->
+      <!-- 也可以直接跳到某个 Google 表单 -->
+      <!-- <li><a class="btn" href="https://docs.google.com/forms/你的表单ID/viewform?embedded=true" target="_blank">表单直达（示例）</a></li> -->
+    </ul>
+
+    <!-- <p class="muted" style="margin-top:14px">提示：如需给单个学生发专用链接，可直接把本页地址后面加 <code>?name=张三</code>。</p> -->
+  </div>
+</div>
+
+<script>
+(function(){
+  // 1) 取 URL 里的 ?name=，填到输入框
+  const params = new URLSearchParams(location.search);
+  // ★ 校验规则：要求姓名必须匹配 REQUIRED_NAME（可用 | 支持多个名字）
+  const REQUIRED_NAME = '陆星汝'; // 例如 '张三|李四'
+  const namePattern = new RegExp('^(' + REQUIRED_NAME + ')$');
+  function isNameValid(n){ return namePattern.test((n||'').trim()); }
+  const input  = document.getElementById('nameInput');
+  const hello  = document.getElementById('hello');
+  const btn    = document.getElementById('saveBtn');
+  const links  = document.querySelectorAll('.testlink');
+
+  let name = (params.get('name') || '').trim();
+  if (name) { input.value = name; hello.innerHTML = '当前：<span class="name">'+name+'</span>'; }
+
+  
+  // 启用水印层（与 quiz01 相同结构）
+  document.getElementById('wm').style.display = 'block';
+
+  // 生成平铺 SVG 水印 —— 取自 quiz01（带字体样式）
+  function drawTiles(text){
+    const W=520,H=320,cx=W/2,cy=H/2;
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+        <style>text{ font-family: system-ui,-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+                      font-size:28px; fill:#fff; fill-opacity:.22; }</style>
+        <g transform="rotate(-20 ${cx} ${cy})">
+          <text x="${cx}" y="${cy-10}" text-anchor="middle">${text}</text>
+          <text x="${cx}" y="${cy+30}" text-anchor="middle">${text}</text>
+        </g>
+      </svg>`;
+    const url = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    document.getElementById('wmTiles').style.backgroundImage = `url('${url}')`;
+  }
+  function paintWMFor(name, valid){
+    const student = (name || "未命名").replace(/[<>]/g,"");
+    document.getElementById("wmText").textContent = valid ? `仅供 ${student} 使用  禁止外传` : `仅供教学使用  禁止外传`;
+    const tiled = valid ? `学生姓名：${student} · 仅供教学使用 · 禁止外传`
+                        : `仅供教学使用 · 禁止外传`;
+    drawTiles(tiled);
+  }
+// 2) 生成水印（和你的测试页一致的样式）
+  // 3) 统一给测试链接拼接 ?name=
+  function refreshLinks(){
+    name = (input.value || '').trim();
+    const valid = isNameValid(name);
+
+    links.forEach(a=>{
+      const file = a.getAttribute('data-file');
+      const base = file + (file.includes('?') ? '&' : '?');
+
+      if (valid){
+        a.href = base + 'name=' + encodeURIComponent(name);
+        a.removeAttribute('aria-disabled');
+        a.removeAttribute('disabled');
+        a.removeAttribute('tabindex');
+        a.classList.remove('disabled');
+      } else {
+        a.removeAttribute('href');               // 没有 href，浏览器也不会显示为可点击
+        a.setAttribute('aria-disabled','true');
+        a.setAttribute('disabled','');
+        a.setAttribute('tabindex','-1');
+        a.classList.add('disabled');
+      }
+
+      a.onclick = function(e){
+        if(!valid){
+          e.preventDefault();
+          alert('请输入正确姓名');
+        }
+      };
+    });
+
+    const err = document.getElementById('err');
+    if (!name) { hello.innerHTML = ''; err.textContent=''; }
+    else if (!valid) { hello.innerHTML=''; err.textContent = '姓名不匹配'; }
+    else { hello.innerHTML = '当前：<span class="name">'+name+'</span>'; err.textContent=''; }
+
+    paintWMFor(name, valid);
+}
+  // 初次渲染 & 绑定输入变化实时校验
+  refreshLinks();
+  input.addEventListener('input', refreshLinks);
+
+  // “确定/更新姓名”按钮
+  btn.addEventListener('click', ()=>{
+    refreshLinks();
+    // 可选：把 name 写回当前 URL，方便刷新后保留
+    const p = new URLSearchParams(location.search); p.set('name', (input.value||'').trim());
+    history.replaceState(null,'', location.pathname + '?' + p.toString());
+  });
+})();
+</script>
+</body>
+</html>
