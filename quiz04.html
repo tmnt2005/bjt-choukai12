@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="robots" content="noindex, nofollow">
+<title>BJT 聴読解 · 資料聴読解問題</title>
+
+<style>
+  /* 基础 */
+  body{margin:0;font:16px/1.6 system-ui,-apple-system,"PingFang SC","Hiragino Sans GB",Segoe UI,Roboto;background:#0f1115;color:#e6e8ef}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px}
+  .card{background:#131621;border:1px solid #22263a;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);overflow:hidden}
+  .hdr{display:flex;gap:16px;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #22263a}
+  .ttl{font-weight:700}
+  .ctrls{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{border:1px solid #2e3350;background:#1b1f33;color:#e6e8ef;padding:8px 12px;border-radius:10px;cursor:pointer}
+  .btn:hover{background:#232948}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px;padding:16px}
+  .player{position:relative;padding-top:56.25%;background:#000;border-radius:12px;overflow:hidden}
+  .player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .note{font-size:14px;color:#aab0c3}
+  .iframe{position:relative;padding-bottom:62vh;height:0;overflow:hidden;border-radius:12px;border:1px solid #22263a}
+  .iframe iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#0b0d13}
+  .toplink{display:flex;justify-content:flex-end}
+  .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.8); color:#fff; display:none; align-items:center; justify-content:center; text-align:center; padding:24px; z-index:99 }
+  .overlay.show{ display:flex !important; }
+
+
+  /* 仅文字水印（全屏平铺） */
+  .wm{position:fixed;inset:0;pointer-events:none;z-index:5;display:none}
+  .wm-tiles{
+    position:fixed;inset:0;z-index:6;pointer-events:none;
+    background-repeat:repeat;background-size:520px 320px;opacity:.22;
+  }
+  .wm span{position:fixed;right:16px;bottom:12px;z-index:7;transform:rotate(-12deg);font-size:18px;color:#fff}
+
+  /* 访问受限页 */
+  #gate{display:none;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  #gate .box{max-width:640px;background:#151a28;border:1px solid #2a3150;border-radius:16px;
+             padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  #gate h2{margin:0 0 8px 0;font-size:20px}
+  #gate code{background:#0f1322;border:1px solid #2a3150;border-radius:6px;padding:2px 6px}
+  #gate p{margin:10px 0;color:#aab0c3}
+</style>
+
+<script>
+/* ===== 只允许带 ?name=... 访问（白名单）：把 ALLOW 改成你的学生姓名；设 [] 表示任意非空姓名都放行 ===== */
+(function(){
+  const ALLOW = ["陆星汝"];              // ← 修改这里（例：["张三","李四"] 或 []）
+  const qs = new URLSearchParams(location.search);
+  const name = (qs.get('name') || "").trim();
+  const ok = name && (ALLOW.length === 0 || ALLOW.includes(name));
+  // 标记给后续脚本用
+  window.__ALLOW__ = ok;
+  window.__studentName__ = name;
+})();
+
+var EXAM_START = "";
+var EXAM_END   = "";
+</script>
+</head>
+
+<body>
+<!-- 访问受限页（默认隐藏；脚本判断后决定显示哪个） -->
+<div id="gate" style="display:none">
+  <div class="box">
+    <h2>访问受限</h2>
+    <p>需要使用带有 <code>?name=姓名</code> 的专用链接才能进入。</p>
+    <p id="gate-example" style="opacity:.85"></p>
+  </div>
+</div>
+
+<!-- 正常页面主体（默认隐藏，放行后显示） -->
+<div id="app" style="display:none">
+  <div class="wrap">
+    <div class="card">
+      <div class="hdr">
+        <div class="ttl">BJT 聴読解 · 資料聴読解問題</div>
+        <div class="ctrls">
+          <select id="pack" class="btn"></select>
+          <button id="nextBtn" class="btn" type="button">下一题 ▶</button>
+          <button class="btn" onclick="scrollToForm()">开始作答</button>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="player"><iframe id="yt" src="" title="YouTube player" allow="autoplay" allowfullscreen></iframe></div>
+        <div class="note">提示：上方是本节音/视频；点击“开始作答”将直接滚动到本页下方的作答区域（不跳转页面）。</div>
+        <div class="toplink"><button class="btn" type="button" onclick="goTop()">回到顶部▲</button></div>
+        <div id="formAnchor"></div>
+        <div class="iframe"><iframe id="form" src=""></iframe></div>
+        <div class="toplink"><button class="btn" type="button" onclick="goTop()">回到顶部▲</button></div>
+        <div class="note">仅供 <span id="who">未命名</span> 使用  禁止外传</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 仅文字水印（放在 app 内；受限时不显示） -->
+  <div class="wm" id="wm">
+    <div class="wm-tiles" id="wmTiles"></div>
+    <span id="wmText"></span>
+  </div>
+
+  <!-- 到时关闭（可选） -->
+  <div id="overlay" class="overlay" style="display:none"><div>
+    <h2 id="ovTitle">考试未开放</h2>
+    <p id="ovText">请在开放时间进入。</p>
+  </div></div>
+</div>
+
+<script>
+/* ========== 初始化：根据 __ALLOW__ 决定显示 gate 还是 app；并在放行后再加载 iframe ========== */
+(function(){
+  const allowed = !!window.__ALLOW__;
+  const app = document.getElementById('app');
+  const gate = document.getElementById('gate');
+
+  if (!allowed) {
+    // 受限：显示提示页，给出示例链接
+    gate.style.display = 'flex';
+    const allowSample = "张三";
+    const sample = location.origin + location.pathname + "?name=" + (window.__studentName__ || allowSample);
+    const p = document.getElementById('gate-example');
+    if (p) p.innerHTML = `示例：<br><code>${sample}</code>`;
+    return; // 不进行后续任何初始化（iframe 不会加载）
+  }
+
+  // 放行：显示主体
+  app.style.display = 'block';
+  document.getElementById('wm').style.display = 'block';
+
+  // ======= 视频清单（按你的顺序；不排序） =======
+  const VIDEOS = [        { label: "01", url: " https://www.youtube.com/embed/QyfiQXZjfpQ?rel=0" },
+    { label: "02", url: " https://www.youtube.com/embed/5VSVkBnpunU?rel=0" },
+    { label: "03", url: " https://www.youtube.com/embed/pIIdq_GQsUs?rel=0" },
+    { label: "04", url: " https://www.youtube.com/embed/RaoZLtokiXg?rel=0" },
+    { label: "05", url: " https://www.youtube.com/embed/gae6ZQk8TpQ?rel=0" },
+    { label: "06", url: " https://www.youtube.com/embed/Mh9rS1r9nF0?rel=0" },
+    { label: "07", url: " https://www.youtube.com/embed/y4pzIZkVW2s?rel=0" },
+    { label: "08", url: " https://www.youtube.com/embed/j6tKLDy_yWI?rel=0" },
+    { label: "09", url: " https://www.youtube.com/embed/JXFHcHg5azU?rel=0" },
+    { label: "10", url: " https://www.youtube.com/embed/5ixeIG26tkQ?rel=0" },
+    { label: "11", url: " https://www.youtube.com/embed/hqWVpoiJhZw?rel=0" },
+];
+
+  // ======= 表单嵌入链接（替换成你的） =======
+  const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSe1kaDMh0RNqq-Ds0kLKk1NJtfKDgSziXTVIp-SH2vHX9mcjw/viewform?embedded=true";
+
+  EXAM_START = "2025-10-16T18:00:00+08:00"; // 例如 "2025-11-01T18:00:00+08:00"
+  EXAM_END   = "2025-11-01T23:00:00+08:00"; // 例如 "2025-11-01T19:00:00+08:00"
+
+  // ======= 渲染下拉 =======
+  const sel = document.getElementById("pack");
+  VIDEOS.forEach((v, i) => {
+    const op = document.createElement("option");
+    op.value = String(i); op.textContent = v.label; sel.appendChild(op);
+  });
+
+  // ======= 导航：下一题 =======
+  const nextBtn = document.getElementById("nextBtn");
+  let currentIndex = 0;
+  function setVideoByIndex(i){
+    if (i<0 || i>=VIDEOS.length) return;
+    currentIndex=i;
+    document.getElementById("yt").src = VIDEOS[i].url; // 这时才加载
+    sel.value = String(i);
+    nextBtn.disabled = (currentIndex >= VIDEOS.length - 1);
+  }
+  sel.addEventListener("change", e => setVideoByIndex(parseInt(e.target.value,10)));
+  nextBtn.addEventListener("click", () => { if(currentIndex < VIDEOS.length-1) setVideoByIndex(currentIndex+1); });
+
+  // 初始化第 1 题 & 表单
+  if (VIDEOS.length) setVideoByIndex(0);
+  document.getElementById("form").src = FORM_URL;
+
+  // ======= 水印姓名（来自 ?name=） =======
+  const student = (window.__studentName__ || "未命名").replace(/[<>]/g,"");
+  document.getElementById("who").textContent = student;
+  document.getElementById("wmText").textContent = `仅供 ${student} 使用  禁止外传`;
+  // 生成平铺 SVG 水印
+  (function(){
+    const text = `学生姓名：${student} · 仅供教学使用 · 禁止外传`;
+    const W=520,H=320,cx=W/2,cy=H/2;
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+        <style>text{ font-family: system-ui,-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+                      font-size:28px; fill:#fff; fill-opacity:.22; }</style>
+        <g transform="rotate(-20 ${cx} ${cy})">
+          <text x="${cx}" y="${cy-10}" text-anchor="middle">${text}</text>
+          <text x="${cx}" y="${cy+30}" text-anchor="middle">${text}</text>
+        </g>
+      </svg>`;
+    const url = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    document.getElementById('wmTiles').style.backgroundImage = `url('${url}')`;
+  })();
+
+  // 工具函数
+  window.scrollTo({top:0}); // 初始置顶
+  window.scrollToForm = () => document.getElementById("formAnchor").scrollIntoView({behavior:"smooth",block:"start"});
+  window.goTop = function(){
+    try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){ document.documentElement.scrollTop=0; document.body.scrollTop=0; }
+    setTimeout(()=>document.getElementById('pack')?.focus(),400);
+  };
+
+  // 轻度防复制/右键
+  window.addEventListener("contextmenu", e => e.preventDefault());
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey||e.metaKey) && ["s","p","u","c"].includes(e.key.toLowerCase())) e.preventDefault();
+  });
+})();
+  // 可选：时间窗控制
+  (function(){
+    if(!EXAM_START && !EXAM_END) return;
+    const ov = document.getElementById("overlay");
+    const title = document.getElementById("ovTitle");
+    const text  = document.getElementById("ovText");
+    function tick(){
+      const now = new Date();
+      const st = EXAM_START? new Date(EXAM_START): null;
+      const ed = EXAM_END?   new Date(EXAM_END): null;
+      let show=false;
+      if(st && now < st){ show=true; title.textContent="考试未开放"; text.textContent="请在开放时间进入。"; }
+      if(ed && now > ed){ show=true; title.textContent="考试已关闭"; text.textContent="超出开放时间，已锁定。"; }
+      ov.classList.toggle("show", show);
+      requestAnimationFrame(tick);
+    }
+    tick();
+  })();
+</script>
+</body>
+</html>
